@@ -1,0 +1,38 @@
+name: Build firmware
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install tools
+        run: pip install platformio esptool==4.8.1
+
+      - name: Build
+        run: pio run
+
+      - name: Collect binaries
+        run: |
+          mkdir out
+          B=.pio/build/cyd
+          cp $B/bootloader.bin $B/partitions.bin $B/firmware.bin out/
+          cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin out/
+          python -m esptool --chip esp32 merge_bin -o out/cyd_arcade_full.bin \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+            0x1000 out/bootloader.bin 0x8000 out/partitions.bin \
+            0xe000 out/boot_app0.bin 0x10000 out/firmware.bin
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cyd-arcade-bins
+          path: out/
